@@ -140,7 +140,7 @@
 
 <div class="config" id="config">
   <strong>Setup</strong>
-  <p>No Google Maps API key is needed for the map. Optional: paste your normal Google Sheets link or a published CSV link to load your real restaurant list.</p>
+  <p>No Google Maps API key is needed. Your Google Sheet and Apps Script links are locked in by default. Edit them only if you change sheets or redeploy the script.</p>
   <label>Google Sheet URL</label>
   <input id="sheetUrlInput" placeholder="Paste normal Google Sheet link or published CSV link" />
   <div style="height:8px"></div>
@@ -224,6 +224,18 @@ let selectedBulk = new Set();
 const STORAGE_KEY = "kcFoodMapFree_places_v1";
 const SCRIPT_URL_KEY = "kcFoodMapFree_scriptUrl";
 
+// Locked-in default URLs for kc-food-map.pages.dev
+const DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1GGsWJQqvAFmAlTBhiJ48KJB8npJTcl_D53GEAeIr0vs/edit?gid=903233232#gid=903233232";
+const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzsJrKxLaN7x9JUx3Vzbo6mKT0Csp96v6HOkSgTXGFV2wNaQfY9FsIVOrM_QVAJhiYq/exec";
+
+function getSheetUrl(){
+  return localStorage.getItem("kcFoodMapFree_sheetUrl") || DEFAULT_SHEET_URL;
+}
+
+function getScriptUrl(){
+  return localStorage.getItem(SCRIPT_URL_KEY) || DEFAULT_SCRIPT_URL;
+}
+
 function placeKey(p){
   return [
     String(p.name || "").trim().toLowerCase(),
@@ -233,7 +245,7 @@ function placeKey(p){
 }
 
 async function postToSheet(payload){
-  const scriptUrl = localStorage.getItem(SCRIPT_URL_KEY);
+  const scriptUrl = getScriptUrl();
   if(!scriptUrl){
     toast("Saved locally only");
     return {ok:false, localOnly:true};
@@ -364,7 +376,7 @@ async function loadSheetRows(rawUrl){
 }
 
 async function loadSheetIfAny(){
-  const rawUrl = localStorage.getItem("kcFoodMapFree_sheetUrl");
+  const rawUrl = getSheetUrl();
   if(!rawUrl) return;
   try{
     const rows = await loadSheetRows(rawUrl);
@@ -772,14 +784,22 @@ document.getElementById("listTab").onclick=()=>{activePanel="list"; renderAll();
 document.getElementById("surpriseTab").onclick=()=>{activePanel="surprise"; renderAll();};
 
 document.getElementById("settingsBtn").onclick=()=>{
-  document.getElementById("sheetUrlInput").value=localStorage.getItem("kcFoodMapFree_sheetUrl")||"";
-  document.getElementById("scriptUrlInput").value=localStorage.getItem(SCRIPT_URL_KEY)||"";
+  document.getElementById("sheetUrlInput").value=getSheetUrl();
+  document.getElementById("scriptUrlInput").value=getScriptUrl();
+  setSheetStatus("Connected with saved default links. Edit only if needed.");
   document.getElementById("config").classList.toggle("show");
 };
 document.getElementById("closeSetup").onclick=()=>document.getElementById("config").classList.remove("show");
 document.getElementById("saveSetup").onclick=()=>{
-  localStorage.setItem("kcFoodMapFree_sheetUrl", document.getElementById("sheetUrlInput").value.trim());
-  localStorage.setItem(SCRIPT_URL_KEY, document.getElementById("scriptUrlInput").value.trim());
+  const sheetUrl = document.getElementById("sheetUrlInput").value.trim();
+  const scriptUrl = document.getElementById("scriptUrlInput").value.trim();
+
+  if(sheetUrl && sheetUrl !== DEFAULT_SHEET_URL) localStorage.setItem("kcFoodMapFree_sheetUrl", sheetUrl);
+  else localStorage.removeItem("kcFoodMapFree_sheetUrl");
+
+  if(scriptUrl && scriptUrl !== DEFAULT_SCRIPT_URL) localStorage.setItem(SCRIPT_URL_KEY, scriptUrl);
+  else localStorage.removeItem(SCRIPT_URL_KEY);
+
   location.reload();
 };
 
