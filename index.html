@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>KC Food Map Free</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+
+  <!-- Free map display. No Google Maps API key needed. -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root{
+      --bg:#f6f7f8; --card:#fff; --text:#151515; --muted:#6b7280; --border:#e5e7eb;
+      --accent:#2563eb; --green:#16a34a; --orange:#f59e0b; --red:#dc2626;
+      --shadow:0 10px 30px rgba(0,0,0,.12); --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+    #app{height:100vh;display:flex;flex-direction:column}
+    .topbar{position:relative;z-index:1000;background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:10px 12px calc(8px + env(safe-area-inset-top)/4);flex:0 0 auto}
+    .brand{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+    .logo{width:34px;height:34px;border-radius:11px;background:#111;color:white;display:grid;place-items:center;font-weight:800}
+    .brand h1{font-size:18px;margin:0;line-height:1}
+    .brand small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+    .searchrow{display:flex;gap:8px}
+    .searchbox{flex:1;display:flex;align-items:center;background:#f1f3f4;border:1px solid #e2e4e7;border-radius:999px;padding:0 12px;height:42px}
+    .searchbox input{border:0;background:transparent;outline:none;width:100%;font-size:15px}
+    button{border:0;border-radius:999px;background:#111;color:white;padding:10px 14px;font-weight:700;font-size:14px;cursor:pointer}
+    button.secondary{background:#eef2ff;color:#1d4ed8}
+    button.light{background:#f3f4f6;color:#111}
+    button.good{background:var(--green)}
+    button.warn{background:var(--orange)}
+    .chips{display:flex;gap:7px;overflow:auto;padding-top:8px;scrollbar-width:none}.filterbar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;padding-top:8px}.filterbar select{height:36px;border-radius:999px;padding:0 9px;font-size:12px;background:#fff}.bulkbar{display:none;gap:6px;align-items:center;overflow:auto;padding-top:8px}.bulkbar.show{display:flex}.bulkbar strong{white-space:nowrap;font-size:12px}.bulkbar button{font-size:11px;padding:7px 9px}
+    .chip{white-space:nowrap;border:1px solid var(--border);background:white;color:#111;border-radius:999px;padding:8px 11px;font-size:13px;flex:0 0 auto}
+    .chip.active{background:#111;color:white;border-color:#111}
+    #map{flex:1;min-height:0;background:#d9e5d2;z-index:1}
+    .bottom-panel{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:1001;background:rgba(255,255,255,.96);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow);overflow:hidden;max-height:52vh;display:flex;flex-direction:column}
+    .panel-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border)}
+    .panel-head strong{font-size:15px}
+    .tabs{display:flex;gap:8px}
+    .tab{padding:7px 10px;border-radius:999px;background:#f3f4f6;font-size:12px;font-weight:700;cursor:pointer}
+    .tab.active{background:#111;color:white}
+    .list{overflow:auto;padding:8px;display:grid;gap:8px}
+    .place-card{background:white;border:1px solid var(--border);border-radius:18px;padding:12px;display:grid;gap:8px;cursor:pointer}.place-card:hover{border-color:#c7d2fe}
+    .place-title{display:flex;justify-content:space-between;gap:8px}
+    .place-title h3{font-size:15px;margin:0}
+    .badge{font-size:11px;padding:4px 8px;border-radius:999px;background:#f3f4f6;color:#111;white-space:nowrap}
+    .badge.tried{background:#dcfce7;color:#166534}
+    .badge.want{background:#fef3c7;color:#92400e}
+    .badge.no{background:#fee2e2;color:#991b1b}
+    .meta{color:var(--muted);font-size:12px;line-height:1.35}
+    .actions{display:flex;flex-wrap:wrap;gap:7px}
+    .actions button{font-size:12px;padding:8px 10px}
+    .drawer{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:2000;display:none;align-items:flex-end}
+    .drawer.show{display:flex}
+    .sheet{background:white;border-radius:26px 26px 0 0;width:100%;padding:18px;box-shadow:var(--shadow);max-height:82vh;overflow:auto}
+    .sheet h2{margin:0 0 5px;font-size:22px}
+    .sheet .grid{display:grid;gap:10px;margin:15px 0}
+    label{font-size:12px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.04em}
+    select,input,textarea{width:100%;border:1px solid var(--border);border-radius:14px;padding:12px;font-size:15px;background:white}
+    textarea{min-height:74px}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .config{position:fixed;top:92px;left:10px;right:10px;z-index:1500;background:white;border:1px solid var(--border);box-shadow:var(--shadow);border-radius:18px;padding:12px;display:none}
+    .config.show{display:block}
+    .config p{font-size:12px;color:var(--muted);margin:6px 0 10px;line-height:1.35}
+    .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:3000;background:#111;color:#fff;border-radius:999px;padding:10px 14px;font-size:13px;display:none}
+    .pin{border-radius:50%;width:28px;height:28px;display:grid;place-items:center;color:white;font-weight:900;border:2px solid white;box-shadow:0 3px 10px rgba(0,0,0,.3);font-size:13px}.pin.selected{outline:4px solid #111;transform:scale(1.18)}
+    .pin-no{background:#dc2626}.pin-want{background:#f59e0b}.pin-tried{background:#16a34a}.pin-fav{background:#7c3aed}.pin-skip{background:#6b7280}
+    @media(min-width:800px){
+      body{overflow:hidden}
+      #app{display:grid;grid-template-columns:390px 1fr;height:100vh}
+      .topbar{grid-column:1/2;grid-row:1/2;border-right:1px solid var(--border);border-bottom:0;height:286px}
+      #map{grid-column:2/3;grid-row:1/2;height:100vh}
+      .bottom-panel{
+        position:fixed;
+        top:286px;
+        left:0;
+        bottom:0;
+        right:auto;
+        width:390px;
+        max-height:none;
+        height:auto;
+        margin:0;
+        border-radius:0;
+        border-left:0;
+        border-right:1px solid var(--border);
+        border-bottom:0;
+        box-shadow:none;
+        background:#fff;
+        z-index:1001;
+      }
+      .panel-head{padding:10px 14px}
+      .list{padding:10px 12px 16px}
+      .config{left:12px;right:auto;width:366px}
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo">KC</div>
+      <div><h1>Food Map</h1><small>Free map, Google Maps links, your food CRM</small></div>
+    </div>
+    <div class="searchrow">
+      <div class="searchbox"><input id="searchInput" placeholder="Search place, food, city/state..." /></div>
+      <button class="secondary" id="settingsBtn">Setup</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="filterbar">
+      <select id="foodFilter"><option value="">All Food Types</option></select>
+      <select id="priceFilter"><option value="">Any Price</option></select>
+      <select id="ratingFilter">
+        <option value="">Any Rating</option>
+        <option value="4.5">4.5+</option>
+        <option value="4.0">4.0+</option>
+        <option value="3.5">3.5+</option>
+      </select>
+    </div>
+    <div class="chips">
+      <button class="chip active" id="mapViewToggle">List = Visible Map</button>
+      <button class="chip" id="fitAllBtn">Fit Results</button>
+      <button class="chip" id="selectModeBtn">Select Mode</button>
+    </div>
+    <div class="bulkbar" id="bulkBar">
+      <strong id="selectedCount">0 selected</strong>
+      <button id="bulkTried">Mark Tried</button>
+      <button id="bulkWant">Want To Try</button>
+      <button id="bulkSkip">Skip</button>
+      <button id="selectVisible">Select Visible</button>
+      <button class="light" id="clearSelected">Clear</button>
+      <button class="light" id="cancelBulk">Done</button>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<div class="config" id="config">
+  <strong>Setup</strong>
+  <p>No Google Maps API key is needed for the map. Optional: paste your normal Google Sheets link or a published CSV link to load your real restaurant list.</p>
+  <label>Google Sheet URL</label>
+  <input id="sheetUrlInput" placeholder="Paste normal Google Sheet link or published CSV link" />
+  <div style="height:8px"></div>
+  <label>Google Apps Script Web App URL</label>
+  <input id="scriptUrlInput" placeholder="Paste Apps Script Web App URL for saving back to sheet" />
+  <p id="sheetStatus" style="font-weight:700;color:#111"></p>
+  <div style="height:10px"></div>
+  <div class="actions">
+    <button id="saveSetup">Save & Reload</button>
+    <button class="light" id="exportBackup">Export Backup</button>
+    <button class="light" id="importBackup">Import Backup</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" />
+    <button class="light" id="clearCache">Clear Test Data</button>
+    <button class="light" id="closeSetup">Close</button>
+  </div>
+</div>
+
+<div class="bottom-panel">
+  <div class="panel-head">
+    <strong id="countText">Places</strong>
+    <div class="tabs">
+      <span class="tab active" id="mapTab">Map</span>
+      <span class="tab" id="listTab">List</span>
+      <span class="tab" id="surpriseTab">Surprise</span>
+    </div>
+  </div>
+  <div class="list" id="list"></div>
+</div>
+
+<div class="drawer" id="drawer">
+  <div class="sheet">
+    <h2 id="drawerTitle">Place</h2>
+    <div class="meta" id="drawerMeta"></div>
+    <div class="grid">
+      <div>
+        <label>Status</label>
+        <select id="statusSelect">
+          <option value="not_tried">Haven’t Been</option>
+          <option value="want">Want to Try</option>
+          <option value="tried">Tried</option>
+          <option value="favorite">Favorite</option>
+          <option value="skip">Skip</option>
+        </select>
+      </div>
+      <div class="row2">
+        <div><label>My Rating</label><input id="myRating" placeholder="1-10" /></div>
+        <div><label>Food Type</label><input id="foodType" placeholder="BBQ, Mexican..." /></div>
+      </div>
+      <div><label>Price Range</label><input id="priceRange" placeholder="$, $$, $$$" /></div>
+      <div><label>Notes / Review</label><textarea id="notes" placeholder="What did you think? What should you order?"></textarea></div>
+    </div>
+    <div class="actions">
+      <button class="good" id="savePlace">Save</button>
+      <button id="openMaps">Open Google Maps</button>
+      <button class="secondary" id="directions">Directions</button>
+      <button class="light" id="closeDrawer">Close</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SAMPLE_PLACES = [
+  {id:"q39", name:"Q39 - Midtown", address:"1000 W 39th St, Kansas City, MO", lat:39.0577, lng:-94.5991, type:"BBQ", rating:4.7, priceRange:"$$", hours:"Check Google", status:"want", mapsUrl:"https://www.google.com/maps/search/?api=1&query=Q39%20Midtown%20Kansas%20City"},
+  {id:"joeskc", name:"Joe's Kansas City Bar-B-Que", address:"3002 W 47th Ave, Kansas City, KS", lat:39.0421, lng:-94.6391, type:"BBQ", rating:4.8, priceRange:"$$", hours:"Check Google", status:"tried", mapsUrl:"https://www.google.com/maps/search/?api=1&query=Joe's%20Kansas%20City%20Bar-B-Que"},
+  {id:"novel", name:"Novel Restaurant", address:"1927 McGee St, Kansas City, MO", lat:39.0893, lng:-94.5795, type:"New American", rating:4.7, priceRange:"$$$", hours:"Check Google", status:"not_tried", mapsUrl:"https://www.google.com/maps/search/?api=1&query=Novel%20Restaurant%20Kansas%20City"},
+  {id:"corvino", name:"Corvino Supper Club", address:"1830 Walnut St, Kansas City, MO", lat:39.0909, lng:-94.5820, type:"Date Night", rating:4.6, priceRange:"$$$", hours:"Check Google", status:"want", mapsUrl:"https://www.google.com/maps/search/?api=1&query=Corvino%20Kansas%20City"},
+  {id:"town-topic", name:"Town Topic Hamburgers", address:"2021 Broadway Blvd, Kansas City, MO", lat:39.0879, lng:-94.5903, type:"Burgers", rating:4.5, priceRange:"$", hours:"Check Google", status:"not_tried", mapsUrl:"https://www.google.com/maps/search/?api=1&query=Town%20Topic%20Kansas%20City"},
+  {id:"mesob", name:"Mesob Restaurant & Rum Bar", address:"3601 Broadway Blvd, Kansas City, MO", lat:39.0614, lng:-94.5906, type:"Ethiopian / Caribbean", rating:4.6, priceRange:"$$", hours:"Check Google", status:"not_tried", mapsUrl:"https://www.google.com/maps/search/?api=1&query=Mesob%20Restaurant%20Kansas%20City"}
+];
+
+let places = [];
+let map, markerLayer;
+let activeFilter = "all";
+let activePanel = "map";
+let selectedPlace = null;
+let restrictListToMapView = true;
+let suppressFitBounds = false;
+let bulkMode = false;
+let selectedBulk = new Set();
+const STORAGE_KEY = "kcFoodMapFree_places_v1";
+const SCRIPT_URL_KEY = "kcFoodMapFree_scriptUrl";
+
+function placeKey(p){
+  return [
+    String(p.name || "").trim().toLowerCase(),
+    Number(p.lat).toFixed(6),
+    Number(p.lng).toFixed(6)
+  ].join("|");
+}
+
+async function postToSheet(payload){
+  const scriptUrl = localStorage.getItem(SCRIPT_URL_KEY);
+  if(!scriptUrl){
+    toast("Saved locally only");
+    return {ok:false, localOnly:true};
+  }
+  try{
+    setSheetStatus("Saving to Google Sheet...");
+    const res = await fetch(scriptUrl, {
+      method:"POST",
+      mode:"no-cors",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify(payload)
+    });
+    setSheetStatus("Sent update to Google Sheet. Check the Status/Last Updated column.");
+    toast("Sent to Google Sheet");
+    return {ok:true};
+  }catch(e){
+    console.warn(e);
+    setSheetStatus("Google Sheet save failed: " + e.message);
+    toast("Sheet save failed");
+    return {ok:false, error:e.message};
+  }
+}
+
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',1600); }
+function statusLabel(s){ return ({not_tried:"Haven’t Been", want:"Want to Try", tried:"Tried", favorite:"Favorite", skip:"Skip"})[s] || "Haven’t Been"; }
+function statusClass(s){ return s==="tried"||s==="favorite"?"tried":s==="want"?"want":s==="not_tried"?"no":""; }
+function mapsUrl(p){ return p.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name+" "+p.address)}`; }
+function directionsUrl(p){ return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p.name+" "+p.address)}`; }
+
+function loadLocal(){
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+  places = saved || SAMPLE_PLACES;
+  places = places.map(p=>({...p, listingId: p.listingId || p.id || "", key: p.key || placeKey(p)}));
+}
+function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(places)); }
+
+function parseCSV(text){
+  const rows=[]; let row=[], cur="", q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i], n=text[i+1];
+    if(c=='"' && q && n=='"'){cur+='"';i++}
+    else if(c=='"'){q=!q}
+    else if(c==',' && !q){row.push(cur);cur=""}
+    else if((c=='\n'||c=='\r') && !q){ if(cur||row.length){row.push(cur);rows.push(row);row=[];cur=""} if(c=='\r'&&n=='\n')i++}
+    else cur+=c
+  }
+  if(cur||row.length){row.push(cur);rows.push(row)}
+  return rows;
+}
+
+function getSheetInfo(raw){
+  if(!raw) return null;
+  const url = raw.trim();
+  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  let gid = "0";
+  const gidMatch = url.match(/[?#&]gid=([0-9]+)/);
+  if(gidMatch) gid = gidMatch[1];
+  return idMatch ? {sheetId:idMatch[1], gid, raw:url} : {sheetId:null, gid, raw:url};
+}
+
+function normalizeSheetUrl(raw){
+  if(!raw) return "";
+  let url = raw.trim();
+  if(url.includes("output=csv") || url.includes("tqx=out:csv")) return url;
+  const info = getSheetInfo(url);
+  if(info && info.sheetId){
+    return `https://docs.google.com/spreadsheets/d/${info.sheetId}/gviz/tq?tqx=out:csv&gid=${info.gid}`;
+  }
+  return url;
+}
+
+function setSheetStatus(msg){
+  const el = document.getElementById("sheetStatus");
+  if(el) el.textContent = msg || "";
+  console.log("[KC Food Map]", msg);
+}
+
+function tableToCSVFromGviz(table){
+  const cols = table.cols.map(c => c.label || c.id || "");
+  const rows = [cols];
+  (table.rows || []).forEach(row => {
+    rows.push((row.c || []).map(cell => {
+      if(!cell) return "";
+      return cell.f ?? cell.v ?? "";
+    }));
+  });
+  return rows;
+}
+
+function loadGvizJsonp(sheetId, gid){
+  return new Promise((resolve, reject)=>{
+    const cb = "__kcFoodMapSheetCb_" + Date.now();
+    window[cb] = function(resp){
+      try{
+        delete window[cb];
+        script.remove();
+        if(resp.status && resp.status !== "ok") reject(new Error(resp.errors?.[0]?.detailed_message || "Google Sheet returned error"));
+        else resolve(tableToCSVFromGviz(resp.table));
+      }catch(e){ reject(e); }
+    };
+    const script = document.createElement("script");
+    script.onerror = () => {
+      delete window[cb];
+      script.remove();
+      reject(new Error("Could not load Google Sheet. Check that it is shared/published."));
+    };
+    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=responseHandler:${cb}&gid=${gid}`;
+    document.head.appendChild(script);
+  });
+}
+
+async function loadSheetRows(rawUrl){
+  const info = getSheetInfo(rawUrl);
+
+  // Best path: normal Google Sheet URL loaded with JSONP, avoids CORS problems.
+  if(info && info.sheetId){
+    setSheetStatus("Loading Google Sheet...");
+    return await loadGvizJsonp(info.sheetId, info.gid);
+  }
+
+  // Fallback: published CSV URL or other CSV URL.
+  const url = normalizeSheetUrl(rawUrl);
+  setSheetStatus("Loading CSV...");
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("Sheet fetch failed: " + res.status);
+  const text = await res.text();
+  return parseCSV(text);
+}
+
+async function loadSheetIfAny(){
+  const rawUrl = localStorage.getItem("kcFoodMapFree_sheetUrl");
+  if(!rawUrl) return;
+  try{
+    const rows = await loadSheetRows(rawUrl);
+    if(!rows || rows.length < 2) throw new Error("No rows found in sheet");
+    const headers = rows.shift().map(h=>String(h || "").trim().toLowerCase());
+    const idx = name => headers.indexOf(name);
+    function val(r, names){
+      for(const n of names){
+        const k = idx(n);
+        if(k >= 0 && r[k] !== undefined && r[k] !== "") return r[k];
+      }
+      return "";
+    }
+    const loaded = rows.map((r,i)=>({
+      listingId: val(r,["listing id","listingid","id"]) || "",
+      id: val(r,["listing id","listingid","id","place id","google place id"]) || "sheet_"+i,
+      name: val(r,["name","restaurant","restaurant name","place name","business name"]) || "",
+      address: val(r,["address","full address","location"]) || "",
+      lat: Number(val(r,["lat","latitude"])),
+      lng: Number(val(r,["lng","long","longitude","lon"])),
+      type: val(r,["type","category","food type","cuisine"]) || "",
+      rating: val(r,["rating","google rating","stars","reviews","review rating"]) || "",
+      priceRange: val(r,["price range","price","cost"]) || "",
+      hours: val(r,["hours","business hours"]) || "Check Google",
+      status: val(r,["status","my status"]) || "not_tried",
+      mapsUrl: val(r,["google maps url","mapsurl","url","link","google url","google maps link"]) || "",
+      notes: val(r,["notes","review","my notes"]) || "",
+      myRating: val(r,["my rating","my score","personal rating"]) || ""
+    })).filter(p=>p.name && !Number.isNaN(p.lat) && !Number.isNaN(p.lng))
+      .map(p=>({...p, key: placeKey(p)}));
+
+    if(loaded.length){
+      places = loaded;
+      saveLocal();
+      setSheetStatus(`Loaded ${loaded.length} restaurants from Google Sheet.`);
+      toast(`Loaded ${loaded.length} restaurants`);
+    } else {
+      throw new Error("Rows found, but no valid places. Check Name, Latitude, Longitude headers.");
+    }
+  }catch(e){
+    console.warn(e);
+    setSheetStatus("Sheet failed: " + e.message);
+    toast("Sheet failed. Check sharing and headers.");
+  }
+}
+
+function baseFilteredPlaces(){
+  const q = document.getElementById("searchInput").value.trim().toLowerCase();
+  const food = (document.getElementById("foodFilter")?.value || "").toLowerCase();
+  const price = document.getElementById("priceFilter")?.value || "";
+  const minRating = Number(document.getElementById("ratingFilter")?.value || 0);
+
+  return places.filter(p=>{
+    if(activeFilter !== "all" && p.status !== activeFilter) return false;
+    if(food && String(p.type || "").toLowerCase() !== food) return false;
+    if(price && String(p.priceRange || "") !== price) return false;
+    const ratingNum = Number(String(p.rating || "").replace(/[^0-9.]/g,""));
+    if(minRating && (!ratingNum || ratingNum < minRating)) return false;
+    if(!q) return true;
+    return [p.name,p.address,p.type,p.status,p.priceRange,p.rating].join(" ").toLowerCase().includes(q);
+  });
+}
+
+function isInMapView(p){
+  if(!map || !restrictListToMapView) return true;
+  return map.getBounds().contains([Number(p.lat), Number(p.lng)]);
+}
+
+function filteredPlaces(){
+  return baseFilteredPlaces().filter(isInMapView);
+}
+
+function markerPlaces(){
+  return baseFilteredPlaces();
+}
+
+function renderChips(){
+  const chips = [["all","All"],["not_tried","Haven’t Been"],["want","Want to Try"],["tried","Tried"],["favorite","Favorites"],["skip","Skip"]];
+  const el=document.getElementById("chips");
+  el.innerHTML = chips.map(([v,l])=>`<button class="chip ${activeFilter===v?'active':''}" data-filter="${v}">${l}</button>`).join("");
+  el.querySelectorAll("[data-filter]").forEach(b=>b.onclick=()=>{activeFilter=b.dataset.filter; renderAll();});
+}
+
+function updateMapViewToggle(){
+  const btn = document.getElementById("mapViewToggle");
+  if(btn){
+    btn.classList.toggle("active", restrictListToMapView);
+    btn.textContent = restrictListToMapView ? "List = Visible Map" : "List = All Results";
+  }
+}
+
+function renderDropdownFilters(){
+  const foodEl = document.getElementById("foodFilter");
+  const priceEl = document.getElementById("priceFilter");
+  if(!foodEl || !priceEl) return;
+
+  const currentFood = foodEl.value;
+  const currentPrice = priceEl.value;
+
+  const foods = [...new Set(places.map(p=>p.type).filter(Boolean))].sort();
+  const prices = [...new Set(places.map(p=>p.priceRange).filter(Boolean))].sort((a,b)=>a.length-b.length || a.localeCompare(b));
+
+  foodEl.innerHTML = '<option value="">All Food Types</option>' + foods.map(f=>`<option value="${f}">${f}</option>`).join("");
+  priceEl.innerHTML = '<option value="">Any Price</option>' + prices.map(p=>`<option value="${p}">${p}</option>`).join("");
+
+  foodEl.value = currentFood;
+  priceEl.value = currentPrice;
+}
+
+function renderList(){
+  const list=document.getElementById("list");
+  const fp=filteredPlaces();
+  document.getElementById("countText").textContent = `${fp.length} Places`;
+  if(activePanel==="surprise") list.innerHTML = surpriseHTML(fp);
+  else list.innerHTML = fp.map(p=>placeCardHTML(p)).join("") || `<div class="place-card"><b>No matches</b><div class="meta">Try another filter or search.</div></div>`;
+  list.querySelectorAll("[data-card]").forEach(card=>card.onclick=()=>{
+    if(bulkMode) toggleBulkSelection(card.dataset.card);
+    else focusPlace(card.dataset.card, false);
+  });
+  list.querySelectorAll("[data-open]").forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); openDrawer(b.dataset.open); });
+  list.querySelectorAll("[data-gmaps]").forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); window.open(mapsUrl(getPlace(b.dataset.gmaps)),"_blank"); });
+  list.querySelectorAll("[data-tried]").forEach(b=>b.onclick=(e)=>{ 
+    e.stopPropagation(); 
+    const p=getPlace(b.dataset.tried); 
+    const center = map ? map.getCenter() : null;
+    const zoom = map ? map.getZoom() : null;
+    p.status="tried"; 
+    p.key = placeKey(p);
+    saveLocal(); 
+    suppressFitBounds = true;
+    renderAll(); 
+    if(center && zoom !== null) map.setView(center, zoom, {animate:false});
+    postToSheet({
+      action:"updateOne",
+      match:{listingId:p.listingId || p.id || "",name:p.name,lat:p.lat,lng:p.lng},
+      updates:{status:"tried",lastUpdated:new Date().toISOString()}
+    });
+  });
+  const pick=document.getElementById("pickSurprise");
+  if(pick) pick.onclick=pickSurprise;
+}
+
+function placeCardHTML(p){
+  return `<div class="place-card" data-card="${p.id}">
+    <div class="place-title"><h3>${p.name}</h3><span class="badge ${statusClass(p.status)}">${statusLabel(p.status)}</span></div>
+    <div class="meta">⭐ ${p.rating || "—"} · ${p.priceRange || "Price?"} · ${p.type || "Restaurant"} · ${p.hours || "Check Google"}<br>${p.address}</div>
+    <div class="actions">
+      <button data-open="${p.id}">View / Save</button>
+      <button class="secondary" data-gmaps="${p.id}">Google</button>
+      <button class="light" data-tried="${p.id}">Mark Tried</button>
+    </div>
+  </div>`;
+}
+
+function surpriseHTML(fp){
+  return `<div class="place-card">
+    <b>Surprise Me</b>
+    <div class="meta">Pick from your current filter/search. Use “Haven’t Been” + a food type search for a focused result, or All for a complete surprise.</div>
+    <div class="row2">
+      <div><label>Max miles</label><input id="maxMiles" value="15" /></div>
+      <div><label>Food type</label><input id="surpriseType" placeholder="BBQ, tacos, date night..." /></div>
+    </div>
+    <div class="row2">
+      <div><label>Min Rating</label><input id="surpriseRating" placeholder="4.5" /></div>
+      <div><label>Price</label><input id="surprisePrice" placeholder="$, $$, $$$" /></div>
+    </div>
+    <div class="actions"><button id="pickSurprise">Find Something</button></div>
+  </div>` + fp.slice(0,8).map(p=>placeCardHTML(p)).join("");
+}
+
+function pickSurprise(){
+  let pool = filteredPlaces().filter(p=>p.status!=="tried" && p.status!=="skip");
+  const type = (document.getElementById("surpriseType").value||"").toLowerCase().trim();
+  const minRating = Number(document.getElementById("surpriseRating").value || 0);
+  const price = (document.getElementById("surprisePrice").value||"").trim();
+  if(type) pool = pool.filter(p=>[p.name,p.type,p.address].join(" ").toLowerCase().includes(type));
+  if(minRating) pool = pool.filter(p=>Number(String(p.rating||"").replace(/[^0-9.]/g,"")) >= minRating);
+  if(price) pool = pool.filter(p=>String(p.priceRange||"") === price);
+  if(!pool.length){ toast("No surprise matches"); return; }
+  const p = pool[Math.floor(Math.random()*pool.length)];
+  map.setView([p.lat,p.lng], 15);
+  openDrawer(p.id);
+}
+
+function getPlace(id){ return places.find(p=>String(p.id)===String(id)); }
+
+function focusPlace(id, openDetails=false){
+  const p = getPlace(id);
+  if(!p || !map) return;
+  suppressFitBounds = true;
+  map.setView([Number(p.lat), Number(p.lng)], 17, {animate:true});
+  const marker = markerLayer.getLayers().find(m=>{
+    const ll = m.getLatLng();
+    return Math.abs(ll.lat - Number(p.lat)) < 0.000001 && Math.abs(ll.lng - Number(p.lng)) < 0.000001;
+  });
+  if(marker) marker.openPopup();
+  if(openDetails) openDrawer(id);
+  setTimeout(()=>{ renderList(); }, 250);
+}
+
+function pinHtml(p){
+  const selected = selectedBulk.has(String(p.id));
+  const cls = selected ? "pin-fav selected" : 
+    p.status==="tried" ? "pin-tried" : 
+    p.status==="favorite" ? "pin-fav" : 
+    p.status==="want" ? "pin-want" : 
+    p.status==="skip" ? "pin-skip" : "pin-no";
+  const txt = selected ? "✓" :
+    p.status==="tried" ? "✓" : 
+    p.status==="favorite" ? "♥" : 
+    p.status==="want" ? "★" : "";
+  return `<div class="pin ${cls}">${txt}</div>`;
+}
+
+function renderMarkers(){
+  if(!map || !markerLayer) return;
+  markerLayer.clearLayers();
+  const fp = markerPlaces();
+  const group = [];
+  fp.forEach(p=>{
+    const icon = L.divIcon({html:pinHtml(p), className:"", iconSize:[28,28], iconAnchor:[14,14]});
+    const m = L.marker([Number(p.lat), Number(p.lng)], {icon}).addTo(markerLayer);
+    m.bindTooltip(p.name, {permanent: bulkMode, direction: "top", offset: [0,-14]});
+
+    if(bulkMode){
+      m.on("click", ()=>toggleBulkSelection(p.id));
+    } else {
+      m.bindPopup(`<b>${p.name}</b><br><span style="color:#666">${p.type || "Restaurant"} · ${p.priceRange || "Price?"} · ⭐ ${p.rating || "—"}</span><br>${p.address}<br><br>
+        <button onclick="window.__openDrawer('${p.id}')" style="background:#111;color:white;border:0;border-radius:20px;padding:8px 10px;font-weight:700">View / Save</button>
+        <button onclick="window.open('${mapsUrl(p)}','_blank')" style="background:#eef2ff;color:#1d4ed8;border:0;border-radius:20px;padding:8px 10px;font-weight:700">Google</button>`);
+    }
+    group.push(m);
+  });
+  if(group.length && !suppressFitBounds){
+    const fg = L.featureGroup(group);
+    map.fitBounds(fg.getBounds().pad(0.15));
+  }
+}
+window.__openDrawer = openDrawer;
+
+function updateBulkUI(){
+  const bar = document.getElementById("bulkBar");
+  const btn = document.getElementById("selectModeBtn");
+  const count = document.getElementById("selectedCount");
+  if(bar) bar.classList.toggle("show", bulkMode);
+  if(btn){
+    btn.classList.toggle("active", bulkMode);
+    btn.textContent = bulkMode ? "Selecting..." : "Select Mode";
+  }
+  if(count) count.textContent = selectedBulk.size + " selected";
+}
+
+function toggleBulkSelection(id){
+  id = String(id);
+  if(selectedBulk.has(id)) selectedBulk.delete(id);
+  else selectedBulk.add(id);
+  updateBulkUI();
+  suppressFitBounds = true;
+  renderMarkers();
+}
+
+function applyBulkStatus(status){
+  const center = map ? map.getCenter() : null;
+  const zoom = map ? map.getZoom() : null;
+
+  selectedBulk.forEach(id=>{
+    const p = getPlace(id);
+    if(p) p.status = status;
+  });
+
+  saveLocal();
+
+  const updates = [];
+  selectedBulk.forEach(id=>{
+    const p = getPlace(id);
+    if(p){
+      p.key = placeKey(p);
+      updates.push({
+        match:{listingId:p.listingId || p.id || "",name:p.name,lat:p.lat,lng:p.lng},
+        updates:{status:status,lastUpdated:new Date().toISOString()}
+      });
+    }
+  });
+
+  selectedBulk.clear();
+  bulkMode = false;
+  suppressFitBounds = true;
+  renderAll();
+  if(center && zoom !== null) map.setView(center, zoom, {animate:false});
+  postToSheet({action:"updateMany", updates});
+}
+
+function renderAll(){
+  renderChips(); renderDropdownFilters(); renderList(); renderMarkers(); updateBulkUI();
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById(activePanel+"Tab").classList.add("active");
+}
+
+function openDrawer(id){
+  selectedPlace=getPlace(id);
+  if(!selectedPlace) return;
+  document.getElementById("drawerTitle").textContent=selectedPlace.name;
+  document.getElementById("drawerMeta").innerHTML=`⭐ ${selectedPlace.rating||"—"} · ${selectedPlace.priceRange||"Price?"} · ${selectedPlace.type||"Restaurant"} · ${selectedPlace.hours||"Check Google"}<br>${selectedPlace.address}`;
+  document.getElementById("statusSelect").value=selectedPlace.status||"not_tried";
+  document.getElementById("myRating").value=selectedPlace.myRating||"";
+  document.getElementById("foodType").value=selectedPlace.type||"";
+  document.getElementById("priceRange").value=selectedPlace.priceRange||"";
+  document.getElementById("notes").value=selectedPlace.notes||"";
+  document.getElementById("drawer").classList.add("show");
+}
+function closeDrawer(){ document.getElementById("drawer").classList.remove("show"); }
+
+document.getElementById("savePlace").onclick=()=>{
+  if(!selectedPlace) return;
+  const center = map ? map.getCenter() : null;
+  const zoom = map ? map.getZoom() : null;
+
+  selectedPlace.status=document.getElementById("statusSelect").value;
+  selectedPlace.myRating=document.getElementById("myRating").value;
+  selectedPlace.type=document.getElementById("foodType").value;
+  selectedPlace.priceRange=document.getElementById("priceRange").value;
+  selectedPlace.notes=document.getElementById("notes").value;
+
+  selectedPlace.key = placeKey(selectedPlace);
+  saveLocal(); 
+  closeDrawer(); 
+  suppressFitBounds = true;
+  renderAll(); 
+  if(center && zoom !== null) map.setView(center, zoom, {animate:false});
+
+  postToSheet({
+    action:"updateOne",
+    match:{
+      listingId:selectedPlace.listingId || selectedPlace.id || "",
+      name:selectedPlace.name,
+      lat:selectedPlace.lat,
+      lng:selectedPlace.lng
+    },
+    updates:{
+      status:selectedPlace.status,
+      myRating:selectedPlace.myRating,
+      foodType:selectedPlace.type,
+      priceRange:selectedPlace.priceRange,
+      notes:selectedPlace.notes,
+      lastUpdated:new Date().toISOString()
+    }
+  });
+};
+document.getElementById("openMaps").onclick=()=> selectedPlace && window.open(mapsUrl(selectedPlace),"_blank");
+document.getElementById("directions").onclick=()=> selectedPlace && window.open(directionsUrl(selectedPlace),"_blank");
+document.getElementById("closeDrawer").onclick=closeDrawer;
+document.getElementById("drawer").addEventListener("click", e=>{ if(e.target.id==="drawer") closeDrawer(); });
+
+document.getElementById("searchInput").addEventListener("input", ()=>{ suppressFitBounds=false; renderAll(); });
+["foodFilter","priceFilter","ratingFilter"].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener("change", ()=>{ suppressFitBounds=false; renderAll(); });
+});
+document.getElementById("mapViewToggle").onclick=()=>{
+  restrictListToMapView = !restrictListToMapView;
+  updateMapViewToggle();
+  renderList();
+};
+document.getElementById("fitAllBtn").onclick=()=>{
+  suppressFitBounds = false;
+  renderMarkers();
+  renderList();
+};
+
+document.getElementById("selectModeBtn").onclick=()=>{
+  bulkMode = !bulkMode;
+  selectedBulk.clear();
+  suppressFitBounds = true;
+  updateBulkUI();
+  renderMarkers();
+};
+
+document.getElementById("cancelBulk").onclick=()=>{
+  bulkMode = false;
+  selectedBulk.clear();
+  suppressFitBounds = true;
+  updateBulkUI();
+  renderMarkers();
+};
+
+document.getElementById("clearSelected").onclick=()=>{
+  selectedBulk.clear();
+  updateBulkUI();
+  suppressFitBounds = true;
+  renderMarkers();
+};
+
+document.getElementById("selectVisible").onclick=()=>{
+  filteredPlaces().forEach(p=>selectedBulk.add(String(p.id)));
+  updateBulkUI();
+  suppressFitBounds = true;
+  renderMarkers();
+};
+
+document.getElementById("bulkTried").onclick=()=>applyBulkStatus("tried");
+document.getElementById("bulkWant").onclick=()=>applyBulkStatus("want");
+document.getElementById("bulkSkip").onclick=()=>applyBulkStatus("skip");
+document.getElementById("mapTab").onclick=()=>{activePanel="map"; renderAll();};
+document.getElementById("listTab").onclick=()=>{activePanel="list"; renderAll();};
+document.getElementById("surpriseTab").onclick=()=>{activePanel="surprise"; renderAll();};
+
+document.getElementById("settingsBtn").onclick=()=>{
+  document.getElementById("sheetUrlInput").value=localStorage.getItem("kcFoodMapFree_sheetUrl")||"";
+  document.getElementById("scriptUrlInput").value=localStorage.getItem(SCRIPT_URL_KEY)||"";
+  document.getElementById("config").classList.toggle("show");
+};
+document.getElementById("closeSetup").onclick=()=>document.getElementById("config").classList.remove("show");
+document.getElementById("saveSetup").onclick=()=>{
+  localStorage.setItem("kcFoodMapFree_sheetUrl", document.getElementById("sheetUrlInput").value.trim());
+  localStorage.setItem(SCRIPT_URL_KEY, document.getElementById("scriptUrlInput").value.trim());
+  location.reload();
+};
+
+document.getElementById("exportBackup").onclick=()=>{
+  const blob = new Blob([JSON.stringify({exportedAt:new Date().toISOString(),places},null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "kc-food-map-backup.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+document.getElementById("importBackup").onclick=()=>document.getElementById("importFile").click();
+document.getElementById("importFile").onchange=(e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload=()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      if(data.places && Array.isArray(data.places)){
+        places = data.places.map(p=>({...p,key:p.key||placeKey(p)}));
+        saveLocal();
+        renderAll();
+        toast("Backup imported");
+      }
+    }catch(err){ toast("Import failed"); }
+  };
+  reader.readAsText(file);
+};
+document.getElementById("clearCache").onclick=()=>{
+  localStorage.removeItem(STORAGE_KEY);
+  toast("Cleared saved test/local data");
+  setTimeout(()=>location.reload(), 500);
+};
+
+function initMap(){
+  map = L.map('map', {zoomControl:true}).setView([39.0997, -94.5786], 11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom:19,
+    attribution:'&copy; OpenStreetMap &copy; CARTO'
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+  map.on("moveend zoomend", ()=>{ renderList(); updateMapViewToggle(); });
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      L.circleMarker([pos.coords.latitude,pos.coords.longitude], {radius:8}).addTo(map).bindPopup("You are here");
+    });
+  }
+  renderAll();
+}
+
+(async function start(){
+  loadLocal();
+  await loadSheetIfAny();
+  initMap();
+})();
+</script>
+</body>
+</html>
